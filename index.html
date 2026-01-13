@@ -1,0 +1,201 @@
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="utf-8" />
+  <title>الحرمين - معاينة التطبيق</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:'Segoe UI',Tahoma,sans-serif;background:#f8f9fa;margin:0;color:#1B5E20}
+    .header{background:#1B5E20;color:#fff;padding:14px;text-align:center}
+    .container{max-width:900px;margin:18px auto;padding:0 12px}
+    .product{background:#fff;padding:12px;border-radius:8px;display:flex;gap:12px;align-items:center;margin:12px 0;box-shadow:0 2px 6px rgba(0,0,0,0.06)}
+    .product img{width:140px;height:92px;object-fit:cover;border-radius:6px}
+    .btn{background:#D4AF37;color:#1B5E20;border:none;padding:10px 14px;border-radius:8px;font-weight:700;cursor:pointer}
+    .cart-bar{position:fixed;left:18px;bottom:18px;background:#fff;padding:10px 12px;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,0.12);display:flex;gap:10px;align-items:center}
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.35);z-index:40}
+    .modal .box{background:#fff;padding:18px;border-radius:10px;width:92%;max-width:520px;direction:rtl;color:#1B5E20}
+    label{display:block;margin-top:8px;font-size:0.95rem}
+    input,textarea,select{width:100%;padding:8px;margin-top:6px;border-radius:6px;border:1px solid #ddd}
+    .small{font-size:0.9rem;color:#666}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>الحرمين لتجارة المواد الغذائية</h1>
+    <div class="small">تأسست 1996 — توصيل داخل المحافظة</div>
+  </div>
+    <div class="container">
+    <h2>المنتجات</h2>
+    <div id="products"></div>
+    <div style="margin-top:12px">
+  <button id="openCheckout" class="btn">إتمام الطلب</button>
+</div>
+
+<div style="margin-top:26px; text-align:center; color:#666">
+  <div>📞 0504392169 | 01009888281</div>
+  <div>📍 برج نور الحمص، مركز أجا، الدقهلية</div>
+</div>
+  <div class="cart-bar" id="cartBar" style="display:none">
+    <div>السلة: <strong id="cartCount">0</strong></div>
+    <div id="cartTotal">إجمالي: 0 ج.م</div>
+    <div><button id="viewCart" class="btn">عرض</button></div>
+  </div>
+    <div class="modal" id="modal">
+    <div class="box">
+      <h3>تفاصيل الطلب</h3>
+      <div id="cartItems" style="max-height:300px;overflow:auto"></div>
+        <div style="margin-top:12px">
+    <label>الاسم الكامل</label>
+    <input id="cName" placeholder="الاسم">
+    <label>رقم الهاتف</label>
+    <input id="cPhone" placeholder="05xxxxxxxx">
+    <label>العنوان</label>
+    <textarea id="cAddress" rows="2" placeholder="تفاصيل العنوان"></textarea>
+    <label>ملاحظات (اختياري)</label>
+    <textarea id="cNotes" rows="2"></textarea>
+
+    <label style="margin-top:10px">طريقة الدفع</label>
+    <select id="paymentMethod">
+      <option value="cod">الدفع عند الاستلام (نقدًا)</option>
+      <option value="paymob">دفع إلكتروني (محاكاة)</option>
+    </select>
+  </div>
+
+  <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+    <button id="confirm" class="btn">تأكيد وإرسال الطلب</button>
+    <button id="close" class="btn" style="background:#eee;color:#1B5E20">إغلاق</button>
+  </div>
+</div>  <script>
+    // نسخة عرض محلية فقط — لا يحتاج Firebase. تحفظ محلياً في localStorage.
+    const PRODUCTS = [
+      { id: '1', name: 'عسل طبيعي 100%', desc: 'عسل سدر خالص — 500 جم', price: 85, img: 'https://via.placeholder.com/400x260?text=عسل' },
+      { id: '2', name: 'زيت زيتون بكر ممتاز', desc: 'معصور على البارد — 500 مل', price: 42, img: 'https://via.placeholder.com/400x260?text=زيت+زيتون' }
+    ];
+
+    const cart = [];
+    const deliveryFee = 15;
+
+    function renderProducts(){
+      const root = document.getElementById('products');
+      root.innerHTML = '';
+      PRODUCTS.forEach(p=>{
+        const div = document.createElement('div');
+        div.className = 'product';
+        div.innerHTML = `
+          <img src="${p.img}" alt="${p.name}">
+          <div style="flex:1">
+            <h3>${p.name}</h3>
+            <div class="small">${p.desc}</div>
+            <div style="margin-top:8px;font-weight:700">السعر: ${p.price} ج.م</div>
+          </div>
+          <div>
+            <button class="btn add" data-id="${p.id}">أضف إلى السلة</button>
+          </div>
+        `;
+        root.appendChild(div);
+      });
+      document.querySelectorAll('.add').forEach(b=>{
+        b.addEventListener('click', ()=> {
+          const id = b.dataset.id;
+          const p = PRODUCTS.find(x=>x.id===id);
+          const it = cart.find(x=>x.id===id);
+          if(it) it.qty++;
+          else cart.push({ ...p, qty:1 });
+          updateCartBar();
+          alert('✓ تم إضافة المنتج إلى السلة');
+        });
+      });
+    }
+
+    function updateCartBar(){
+      const count = cart.reduce((s,i)=>s+i.qty,0);
+      const total = cart.reduce((s,i)=>s + i.qty * i.price,0) + (count>0 ? deliveryFee : 0);
+      document.getElementById('cartCount').textContent = count;
+      document.getElementById('cartTotal').textContent = 'إجمالي: ' + total + ' ج.م';
+      document.getElementById('cartBar').style.display = count>0 ? 'flex' : 'none';
+    }
+
+    function openModal(){ renderCartItems(); document.getElementById('modal').style.display='flex'; }
+    function closeModal(){ document.getElementById('modal').style.display='none'; }
+
+    function renderCartItems(){
+      const container = document.getElementById('cartItems');
+      container.innerHTML = '';
+      if(cart.length===0){ container.innerHTML = '<div>السلة فارغة.</div>'; return; }
+      cart.forEach(it=>{
+        const el = document.createElement('div');
+        el.style.display='flex'; el.style.justifyContent='space-between'; el.style.alignItems='center'; el.style.padding='8px 0';
+        el.innerHTML = `<div><strong>${it.name}</strong><div class="small">${it.desc}</div></div>
+                        <div style="text-align:left">
+                          <div><button data-id="${it.id}" class="dec">-</button> <span>${it.qty}</span> <button data-id="${it.id}" class="inc">+</button></div>
+                          <div style="font-weight:700;margin-top:6px">${it.price * it.qty} ج.م</div>
+                        </div>`;
+        container.appendChild(el);
+      });
+      container.querySelectorAll('.inc').forEach(b=>b.addEventListener('click', ()=>{ const id=b.dataset.id; cart.find(x=>x.id===id).qty++; renderCartItems(); updateCartBar(); }));
+      container.querySelectorAll('.dec').forEach(b=>b.addEventListener('click', ()=>{ const id=b.dataset.id; const it=cart.find(x=>x.id===id); it.qty--; if(it.qty<=0) cart.splice(cart.indexOf(it),1); renderCartItems(); updateCartBar(); }));
+    }
+
+    document.getElementById('viewCart').addEventListener('click', openModal);
+    document.getElementById('openCheckout').addEventListener('click', openModal);
+    document.getElementById('close').addEventListener('click', closeModal);
+
+    document.getElementById('confirm').addEventListener('click', ()=> {
+      if(cart.length===0){ alert('السلة فارغة'); return; }
+      const name = document.getElementById('cName').value.trim();
+      const phone = document.getElementById('cPhone').value.trim();
+      const address = document.getElementById('cAddress').value.trim();
+      const notes = document.getElementById('cNotes').value.trim();
+      const paymentMethod = document.getElementById('paymentMethod').value;
+      if(!name || !phone || !address){ alert('من فضلك املأ الاسم، رقم الهاتف والعنوان'); return; }
+
+      const items = cart.map(i=>({ id:i.id, name:i.name, qty:i.qty, price:i.price }));
+      const subtotal = cart.reduce((s,i)=>s + i.qty * i.price,0);
+      const total = subtotal + deliveryFee;
+      const order = {
+        id: 'local-' + Date.now(),
+        customer: { name, phone, address, notes },
+        items, subtotal, delivery: deliveryFee, total,
+        status: paymentMethod === 'cod' ? 'pending' : 'payment_pending',
+        paymentMethod,
+        createdAt: new Date().toISOString()
+      };
+
+      // حفظ محلياً في localStorage (لمعاينة فقط)
+      const stored = JSON.parse(localStorage.getItem('haramain_orders') || '[]');
+      stored.unshift(order);
+      localStorage.setItem('haramain_orders', JSON.stringify(stored));
+
+      if(paymentMethod === 'paymob'){
+        window.open('https://example.com/checkout?order=' + encodeURIComponent(order.id), '_blank');
+        alert('سيتم فتح صفحة الدفع (محاكاة). بعد إتمام الدفع يتغير وضع الطلب إلى \"مدفوع\". هذه معاينة محلية.');
+      } else {
+        alert('✓ تم إرسال الطلب محلياً. سنتصل بك لتأكيده.');
+      }
+
+      cart.length = 0;
+      updateCartBar();
+      closeModal();
+    });
+
+    function openAdminPreview(){
+      const adminHtml = generateAdminHtml();
+      const w = window.open();
+      w.document.open();
+      w.document.write(adminHtml);
+      w.document.close();
+    }
+
+    function generateAdminHtml(){
+      const orders = JSON.parse(localStorage.getItem('haramain_orders') || '[]');
+      let list = '';
+      if(orders.length === 0) list = '<div class="small">لا توجد طلبات محلية.</div>';
+      else orders.forEach(o=>{
+        list += `<div style="background:#fff;padding:12px;border-radius:8px;margin-bottom:8px">
+          <div><strong>${o.id}</strong> — ${o.customer.name} — ${o.customer.phone}</div>
+          <div class="small">العنوان: ${o.customer.address}</div>
+          <div class="small">الوقت: ${o.createdAt}</div>
+          <div style="margin-top:6px">المجموع: ${o.total} ج.م — الحالة: <strong>${o.status}</strong></div>
+          <div style="margin-top:6px"><button onclick="(function(){ const arr=JSON.parse(localStorage.getItem('haramain_orders')||'[]'); arr[0].status='confirmed'; localStorage.setItem('haramain_orders', JSON.stringify(arr)); alert('تم تأكيد أول طلب (محلي)'); })()" class="btn">تأكيد أول طلب (محلي)</button></div>
+        </div>`;
+      });
+      return `<!doctype html><html dir="rtl"><head><meta charset="utf-8"><title>لوحة إدارة - معاينة</title><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;background:#f2f4f3;color:#1B5E20;padding:18px} .btn{background:#D4AF37;color:#1B5E20;border:none;padding:8px;border-radius:6px;cursor:pointer}</style></head><body><h2>لوحة إدارة - معاينة محلية</h2>${list}<p>هذه لوحة إدارة محلية للمعاينة فقط.</p></body></html>`;
